@@ -1,0 +1,14 @@
+services:
+  app:
+    build:
+      context: .
+    platform: linux/amd64
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - venv-data:/opt/venv
+    restart: unless-stopped
+
+volumes:
+  venv-data:

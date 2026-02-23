@@ -1,0 +1,14 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "cachetools",
+    "google-adk>=1.25.1",
+    "litellm>=1.81.14",
+    "pydantic-settings",
+    "tavily-python>=0.7.21",
+    "tenacity",
+]

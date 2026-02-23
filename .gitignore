@@ -1,0 +1,16 @@
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.env
+.venv/
+.envrc
+.mypy_cache/
+.cache/
+.cursor/
+.ipynb_checkpoints/
+.DS_Store
+.vscode/
+*.swp
+.adk
