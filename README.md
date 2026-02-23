@@ -1,3 +1,110 @@
-# market-analyst-agent
+# Market Analyst Agent
 
-The pricing agent uses OpenRouter and a Tavily-based function tool for web search; it only answers pricing-related questions. Set `OPENROUTER_API_KEY` and `TAVILY_API_KEY` in `analyst_agent/.env`. Run via `docker compose run --rm --env-file analyst_agent/.env app adk run analyst_agent` or `docker compose run --rm --service-ports --env-file analyst_agent/.env app adk web`.
+Agent d'analyse de marché utilisant Google ADK. Pour un produit donné, il recherche les prix sur plusieurs plateformes, analyse les avis clients et les tendances, puis génère un rapport structuré en markdown.
+
+---
+
+## Setup
+
+### 1. Configurer les variables d'environnement
+
+Copiez le fichier `analyst_agent/.env.example` et renommez-le `analyst_agent/.env`. L'application utilise 2 variables d'environnement. Vous recevrez les clés d'API par email, mais vous pouvez également utiliser les vôtres.
+
+```dotenv
+OPENROUTER_API_KEY=...
+TAVILY_API_KEY=...
+```
+
+### 2. Démarrer l'application
+
+```bash
+docker compose up
+```
+
+L'interface web de Google ADK est accessible sur [http://localhost:8000](http://localhost:8000). Vous pouvez l'utiliser pour tester l'agent, par exemple avec : `"Nike Air Max 2026"`
+
+---
+
+## Architecture
+
+L'architecture repose sur Google ADK avec OpenRouter pour les modèles. 
+
+Le choix de Google ADK est principalement motivé par la facilité de déployer en production par rapport à d'autres outils comme LangGraph. Google ADK offre également une expérience de développement plus agréable, avec une API moins verbeuse.
+
+Pour ce qui est d'OpenRouter, il fournit une API unifiée donnant accès à l'ensemble des modèles LLM, qu'ils soient propriétaires ou open source. Cela offre une flexibilité en développement (possibilité de changer de modèle rapidement) ainsi qu'une pérennité à long terme (à la sortie d'un nouveau modèle plus performant, le basculement est simple, sans modification d'infrastructure).
+
+### Agents & Outils
+
+L'architecture repose sur un orchestrateur principal, trois sous-agents spécialisés exposés comme outils (`AgentTool`), et trois outils fonctionnels.
+
+#### Agents
+
+**`market_analyst_agent`** est l'orchestrateur. Il vérifie que la demande concerne bien une analyse de marché, coordonne les recherches de prix, délègue l'analyse des avis et des tendances aux autres sous-agents, puis transfère l'ensemble du contexte au `report_generator` pour générer le rapport final.
+
+**`review_analyst`** recherche sur le web des avis clients (Reddit, forums, acheteurs vérifiés) et produit deux types d'insights : ceux liés au produit (points forts et points faibles) et ceux liés à la plateforme (fiabilité, livraison, retours).
+
+**`trend_analyzer`** analyse l'évolution du prix et de la popularité du produit sur les douze dernières semaines et formule une recommandation d'achat.
+
+**`report_generator`** lit le contexte de la conversation (prix, avis, tendances déjà collectés) et le met en forme dans un rapport structuré.
+
+### Outils
+
+| Outil | Type | Description |
+|---|---|---|
+| `web_search` | Tavily Search API | Recherche web généraliste utilisée par l'orchestrateur et le `review_analyst` |
+| `get_price_trend` | Mock déterministe | Série temporelle de prix sur N semaines, seedée par le nom du produit |
+| `get_popularity_trend` | Mock déterministe | Score d'intérêt hebdomadaire (0–100) sur N semaines, seedé par le nom du produit |
+
+### Pourquoi Tavily pour la recherche web ?
+
+Tavily est une API de recherche conçue pour les LLM. Elle renvoie directement un **extrait de contenu ciblé et contextuel**, ce qui évite de télécharger les pages HTML, de les analyser, ou d'injecter de larges blocs de contenu brut dans le contexte du modèle. Au final : moins de tokens consommés et une information plus exploitable.
+
+---
+
+## Tests
+
+Les tests sont organisés en deux niveaux : **tests unitaires** et **tests d'intégration** (requièrent une clé API active).
+
+```bash
+# Tests unitaires uniquement
+docker compose run --rm app uv run pytest tests/ -v -m "not integration"
+
+# Tous les tests (unitaires + intégration)
+docker compose run --rm app uv run pytest tests/ -v
+```
+
+### Ce qui est testé
+
+**`test_utils.py`** — Utilitaires de base
+
+- Test que `load_prompt` soulève une exception si un fichier de prompt n'existe pas.
+- Test le formatage de la date par `iso_week_label`, notamment le passage d'année.
+
+**`test_trends.py`** — Outils de tendances
+
+- Test que les outils de tendances sont déterministes : le même nom de produit produit toujours les mêmes données.
+- Test que le paramètre `weeks` contrôle exactement le nombre de points retournés.
+
+**`test_search.py`** — Outil de recherche web
+
+- Test que le cache évite les appels redondants à Tavily : un deuxième appel identique ne doit pas déclencher une nouvelle requête.
+- Test que `include_domains` est transmis tel quel à Tavily.
+- Test que `tenacity` effectue exactement 3 tentatives en cas d'échec consécutif.
+
+**`test_review_analyst.py`** — Agent d'analyse des avis
+
+- Test que `web_search` est bien enregistré comme outil.
+- Test que l'agent appelle `web_search` au moins une fois avec une requête non vide. Les appels sont interceptés via `before_tool_callback` : aucun appel Tavily réel n'est effectué lors du test.
+- Test que l'agent produit une réponse même quand `web_search` retourne une erreur.
+
+**`test_trend_analyzer.py`** — Agent d'analyse des tendances
+
+- Test que les deux outils (`get_price_trend` et `get_popularity_trend`) sont bien enregistrés.
+- Test que les deux sont invoqués lors d'une analyse.
+- Test que l'agent produit une réponse même en cas d'échec des outils.
+
+**`test_market_analyst.py`** — Agent orchestrateur
+
+- Test que tous les outils et sous-agents sont bien enregistrés (`web_search`, `review_analyst`, `trend_analyzer`, `report_generator`).
+- Test que les requêtes sans lien avec une analyse de marché ne déclenchent aucun appel d'outil.
+- Test qu'une requête de pricing déclenche bien `web_search`. Les outils sont mockés via `before_tool_callback` : aucune dépendance externe lors du test.
