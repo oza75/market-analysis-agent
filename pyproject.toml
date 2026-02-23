@@ -1,3 +1,13 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore:enable_cleanup_closed ignored:DeprecationWarning",
+    "ignore:coroutine.*was never awaited:RuntimeWarning",
+]
+markers = [
+    "integration: tests that require a live LLM API key and are slower than unit tests",
+]
+
 [project]
 name = "app"
 version = "0.1.0"
@@ -6,9 +16,16 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "cachetools",
-    "google-adk>=1.25.1",
+    "google-adk[eval]>=1.25.1",
     "litellm>=1.81.14",
     "pydantic-settings",
     "tavily-python>=0.7.21",
     "tenacity",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-mock>=3.15.1",
 ]
