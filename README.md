@@ -1,5 +1,7 @@
 # Market Analyst Agent
 
+![Example report](docs/example-report.png)
+
 Agent d'analyse de marché utilisant Google ADK. Pour un produit donné, il recherche les prix sur plusieurs plateformes, analyse les avis clients et les tendances, puis génère un rapport structuré en markdown.
 
 ---
