@@ -93,20 +93,32 @@ Tavily est une API de recherche conçue pour les LLM. Elle renvoie directement u
 
 ## Monitoring et observabilité
 
-| Métrique | Catégorie | Raison |
-|---|---|---|
-| Latence end-to-end par run | Performance | Détecte les dégradations globales du workflow |
-| Latence par outil | Performance | Identifie quel outil est le goulot d'étranglement |
-| Taux d'erreur par outil | Fiabilité | Détecte les pannes ou dégradations des dépendances externes |
-| Token usage (input + output) | Coût | Permet de suivre et anticiper les coûts LLM |
-| Hallucination | Qualité | Les prix, URLs et données du rapport sont-ils ancrés dans les sources collectées, ou inventés par le LLM ? |
-| Groundedness | Qualité | Chaque affirmation du rapport peut-elle être tracée jusqu'à un résultat de recherche ou une donnée d'outil réelle ? |
-| Completeness | Qualité | Le rapport contient-il toutes les sections attendues (prix, tendances, avis, recommandation d'achat) ? |
-| Coherence | Qualité | Le trend déclaré dans le texte est-il cohérent avec les données numériques retournées par `trend_analyzer` ? |
+| Métrique | Description |
+|---|---|
+| Latence end-to-end par run | Détecte les dégradations globales du workflow |
+| Latence par outil | Identifie quel outil est le goulot d'étranglement |
+| Taux d'erreur par outil | Détecte les pannes ou dégradations des dépendances externes |
+| Token usage (input + output) | Permet de suivre et anticiper les coûts LLM |
+| Hallucination | Les prix, URLs et données du rapport sont-ils ancrés dans les sources collectées, ou inventés par le LLM ? |
+| Groundedness | Chaque affirmation du rapport peut-elle être tracée jusqu'à un résultat de recherche ou une donnée d'outil réelle ? |
+| Completeness | Le rapport contient-il toutes les sections attendues (prix, tendances, avis, recommandation d'achat) ? |
+| Coherence | Le trend déclaré dans le texte est-il cohérent avec les données numériques retournées par `trend_analyzer` ? |
 
-**Arize AX** serait l'outil de monitoring et d'observabilité. Il couvre nativement les quatre dimensions du monitoring d'un système d'agents : le tracing des exécutions, la collecte de métriques de performance, l'alerting en cas de dysfonctionnement, et l'évaluation de la qualité des outputs via ses *online evaluators*, qui analysent automatiquement chaque rapport généré à chaque run. C'est ce dernier point qui justifie le choix d'Arize AX plutôt qu'un outil de monitoring généraliste comme MLFlow.
+[**Arize AX**](https://arize.com/docs/ax) serait l'outil de monitoring et d'observabilité. Il couvre nativement les quatre dimensions du monitoring d'un système d'agents : le tracing des exécutions, la collecte de métriques de performance, l'alerting en cas de dysfonctionnement, et l'évaluation de la qualité des outputs via ses *online evaluators*, qui analysent automatiquement chaque rapport généré à chaque run. C'est ce dernier point qui justifie le choix d'Arize AX plutôt qu'un outil de monitoring généraliste comme MLFlow.
 
 Il s'intègre aussi nativement avec Google ADK, ce qui signifie que chaque run, chaque appel d'outil et chaque sous-agent est tracé automatiquement sans instrumentation manuelle.
+
+---
+
+## Scaling et optimisation
+
+**Pics de charge.** Vue que la génération d'un rapport peut être vue comme une tâche asynchrone (on ne s'attend pas à une réponse en temps réel), nous pourrions utiliser une architecture par queue. Sur GCP, **Cloud Tasks** permettrait d'enfiler chaque demande d'analyse, qui serait consommée par des workers **Cloud Run**. Le nombre de workers pourrait être scalé dynamiquement en fonction de la profondeur de la queue, ce qui absorberait les pics de charge sans saturer les APIs externes.
+
+**Optimisation des coûts LLM.** Les instructions de chaque agent (system prompt + fichier de prompt Markdown) sont statiques et représentent une part importante des tokens envoyés à chaque appel. Ça fait donc un cas d'usage idéal pour le **prompt caching**, qui permettrait de mettre en cache cette partie fixe côté provider et de réduire les coûts à chaque run.
+
+**Cache des résultats.** Si un utilisateur demande une analyse d'un produit déjà traité récemment, il n'est pas nécessaire de relancer le workflow complet. En vérifiant en base si une entrée récente existe pour le même `product_name`, on pourrait retourner directement le fichier Markdown existant, ce qui optimiserait encore plus les coûts.
+
+**Parallélisation.** ADK supporte par défaut la parallélisation des outils et des sous-agents. `review_analyst`, `trend_analyzer` et les recherches de prix s'exécutent déjà en parallèle au sein d'un même run, sans infrastructure supplémentaire.
 
 ---
 
