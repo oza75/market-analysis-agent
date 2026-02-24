@@ -10,5 +10,16 @@ services:
       - venv-data:/opt/venv
     restart: unless-stopped
 
+  api:
+    build:
+      context: .
+    platform: linux/amd64
+    ports:
+      - "8001:8001"
+    volumes:
+      - .:/app
+      - venv-data:/opt/venv
+    command: adk api_server --host 0.0.0.0 --port 8001 analyst_agent
+
 volumes:
   venv-data:

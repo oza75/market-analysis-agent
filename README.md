@@ -27,13 +27,9 @@ L'interface web de Google ADK est accessible sur [http://localhost:8000](http://
 
 **Serveur API (FastAPI)**
 
-```bash
-docker compose run --rm --service-ports app adk api_server analyst_agent
-```
+Le serveur FastAPI est accessible sur [http://localhost:8001](http://localhost:8001) et expose les endpoints REST d'ADK pour interagir avec l'agent de manière programmatique.
 
-Le serveur FastAPI est accessible sur [http://localhost:8000](http://localhost:8000) et expose les endpoints REST d'ADK pour interagir avec l'agent de manière programmatique.
-
-Redoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+Redoc: [http://localhost:8001/redoc](http://localhost:8001/redoc)
 
 ---
 
