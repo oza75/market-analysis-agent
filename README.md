@@ -61,6 +61,36 @@ Tavily est une API de recherche conçue pour les LLM. Elle renvoie directement u
 
 ---
 
+## Architecture de données et stockage
+
+| Donnée | Stockage |
+|---|---|
+| Résultats d'analyse | PostgreSQL |
+| Rapports générés | Fichiers Markdown |
+| Cache | Redis |
+| Traçabilité des exécutions | MLflow |
+| Configuration des agents | Fichiers YAML |
+
+**Résultats d'analyse :** PostgreSQL serait idéal pour ce type de données. La table pourrait être structurée comme suit :
+
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | UUID | Identifiant unique de l'analyse |
+| `user_id` | TEXT | Identifiant de l'utilisateur |
+| `product_name` | TEXT | Produit analysé |
+| `report_path` | TEXT | Chemin vers le fichier Markdown |
+| `created_at` | TIMESTAMPTZ | Horodatage de la création |
+
+**Rapports d'analyse :** Le rapport est un document texte long. Le stocker séparément de la base de données permettrait d'alléger celle-ci. Si un besoin de recherche textuelle sur les rapports émergeait, il serait toujours possible de les rapatrier dans PostgreSQL via une colonne `TEXT`.
+
+**Cache :** Les appels aux outils externes (example: Tavily) sont les opérations les plus lentes et les plus coûteuses du workflow. Redis permettrait de les mettre en cache avec un TTL, de sorte que deux analyses du même produit à quelques minutes d'intervalle ne déclencheraient pas deux séries d'appels API identiques.
+
+**Traçabilité :** Cet agent est plus un workflow, qu'un chatbot. Une fois le rapport généré, la session est terminée et il n'y a pas de conversation à reprendre. En revanche, pouvoir rejouer une exécution pour comprendre pourquoi un rapport est incorrect est essentiel. MLflow pourrait jouer ce rôle en traçant et analysant les différents runs.
+
+**Configuration :** Le modèle, le prompt, la température et les autres paramètres de chaque agent pourraient être définis dans des fichiers YAML versionnés dans le dépôt Git. Ces fichiers seraient chargés au démarrage et transmis aux différents agents. Tout changement passerait par une pull request et pourrait être annulé via un simple revert en cas de régression.
+
+---
+
 ## Tests
 
 Les tests sont organisés en deux niveaux : **tests unitaires** et **tests d'intégration** (requièrent une clé API active).
