@@ -134,11 +134,11 @@ Il s'intègre aussi nativement avec Google ADK, ce qui signifie que chaque run, 
 
 ## Amélioration continue et A/B testing
 
-**Évaluation automatique.** Arize AX joue ce rôle via ses online evaluators déjà décrits dans la section monitoring. Les scores de qualité accumulés à chaque run constituent une base historique qui permet de détecter si une modification de prompt ou de modèle dégrade les résultats.
+**Évaluation automatique:** Arize AX joue ce rôle via ses online evaluators déjà décrits dans la section monitoring. Les scores de qualité accumulés à chaque run constituent une base historique qui permet de détecter si une modification de prompt ou de modèle dégrade les résultats.
 
-**A/B testing.** Nous pourrions utiliser **PostHog** pour gérer les variantes : une portion des utilisateurs serait exposée à une configuration v2 (prompt, modèle, température) tandis que le reste continuerait sur v1. Arize AX tracerait les deux variantes séparément, permettant de comparer les métriques de qualité et de performance entre les deux groupes. Quand v2 se montre supérieure, la configuration YAML est mise à jour via une pull request.
+**A/B testing:** Nous pourrions utiliser **PostHog** pour gérer les variantes : une portion des utilisateurs serait exposée à une configuration v2 (prompt, modèle, température) tandis que le reste continuerait sur v1. Arize AX tracerait les deux variantes séparément, permettant de comparer les métriques de qualité et de performance entre les deux groupes. Quand v2 se montre supérieure, la configuration YAML est mise à jour via une pull request.
 
-**Feedback utilisateur.** Nous pourrions ajouter une table `report_feedbacks` en base pour capturer les retours utilisateurs :
+**Feedback utilisateur:** Nous pourrions ajouter une table `report_feedbacks` en base pour capturer les retours utilisateurs :
 
 | Colonne | Type | Description |
 |---|---|---|
@@ -150,7 +150,7 @@ Il s'intègre aussi nativement avec Google ADK, ce qui signifie que chaque run, 
 
 Un endpoint supplémentaire sur le serveur FastAPI d'ADK permettrait de recevoir ces feedbacks. Ce signal est précieux pour calibrer les évaluateurs automatiques : si Arize AX attribue un bon score à un rapport que les utilisateurs notent négativement, c'est que l'évaluateur est mal calibré.
 
-**Évolution des capacités.** La façon la plus naturelle de faire évoluer l'agent serait d'ajouter de nouveaux outils et sous-agents : un `price_predictor` pour modéliser l'évolution des prix, un `competitor_analyst` pour comparer le produit à ses alternatives, ou de nouvelles sources de données. ADK est conçu pour ça — chaque nouvel outil enrichit les rapports sans toucher à l'architecture existante.
+**Évolution des capacités:** La façon la plus naturelle de faire évoluer l'agent serait d'ajouter de nouveaux outils et sous-agents : un `price_predictor` pour modéliser l'évolution des prix, un `competitor_analyst` pour comparer le produit à ses alternatives, ou de nouvelles sources de données. ADK est conçu pour ça — chaque nouvel outil enrichit les rapports sans toucher à l'architecture existante.
 
 ---
 
