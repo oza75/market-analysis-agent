@@ -17,11 +17,23 @@ TAVILY_API_KEY=...
 
 ### 2. Démarrer l'application
 
+**Interface web**
+
 ```bash
 docker compose up
 ```
 
-L'interface web de Google ADK est accessible sur [http://localhost:8000](http://localhost:8000). Vous pouvez l'utiliser pour tester l'agent, par exemple avec : `"Nike Air Max 2026"`
+L'interface web de Google ADK est accessible sur [http://localhost:8000](http://localhost:8000).
+
+**Serveur API (FastAPI)**
+
+```bash
+docker compose run --rm --service-ports app adk api_server analyst_agent
+```
+
+Le serveur FastAPI est accessible sur [http://localhost:8000](http://localhost:8000) et expose les endpoints REST d'ADK pour interagir avec l'agent de manière programmatique.
+
+Redoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ---
 
@@ -55,9 +67,7 @@ L'architecture repose sur un orchestrateur principal, trois sous-agents spécial
 | `get_price_trend` | Mock déterministe | Série temporelle de prix sur N semaines, seedée par le nom du produit |
 | `get_popularity_trend` | Mock déterministe | Score d'intérêt hebdomadaire (0–100) sur N semaines, seedé par le nom du produit |
 
-### Pourquoi Tavily pour la recherche web ?
-
-Tavily est une API de recherche conçue pour les LLM. Elle renvoie directement un **extrait de contenu ciblé et contextuel**, ce qui évite de télécharger les pages HTML, de les analyser, ou d'injecter de larges blocs de contenu brut dans le contexte du modèle. Au final : moins de tokens consommés et une information plus exploitable.
+J'ai choisi Tavily car elle est conçue pour être intégrée avec des agents LLM. Contrairement à une recherche web classique, elle renvoie directement un **extrait de contenu ciblé et contextuel**, ce qui évite de télécharger les pages HTML, de les analyser, ou d'injecter de larges blocs de contenu brut dans le contexte du modèle. Au final : moins de tokens consommés et une information plus exploitable.
 
 ---
 
@@ -112,13 +122,35 @@ Il s'intègre aussi nativement avec Google ADK, ce qui signifie que chaque run, 
 
 ## Scaling et optimisation
 
-**Pics de charge.** Vue que la génération d'un rapport peut être vue comme une tâche asynchrone (on ne s'attend pas à une réponse en temps réel), nous pourrions utiliser une architecture par queue. Sur GCP, **Cloud Tasks** permettrait d'enfiler chaque demande d'analyse, qui serait consommée par des workers **Cloud Run**. Le nombre de workers pourrait être scalé dynamiquement en fonction de la profondeur de la queue, ce qui absorberait les pics de charge sans saturer les APIs externes.
+**Pics de charge:** Vue que la génération d'un rapport peut être vue comme une tâche asynchrone (on ne s'attend pas à une réponse en temps réel), nous pourrions utiliser une architecture par queue. Sur GCP, **Cloud Tasks** permettrait d'enfiler chaque demande d'analyse, qui serait consommée par des workers **Cloud Run**. Le nombre de workers pourrait être scalé dynamiquement en fonction de la profondeur de la queue, ce qui absorberait les pics de charge sans saturer les APIs externes.
 
-**Optimisation des coûts LLM.** Les instructions de chaque agent (system prompt + fichier de prompt Markdown) sont statiques et représentent une part importante des tokens envoyés à chaque appel. Ça fait donc un cas d'usage idéal pour le **prompt caching**, qui permettrait de mettre en cache cette partie fixe côté provider et de réduire les coûts à chaque run.
+**Optimisation des coûts LLM:** Les instructions de chaque agent (system prompt + fichier de prompt Markdown) sont statiques et représentent une part importante des tokens envoyés à chaque appel. Ça fait donc un cas d'usage idéal pour le **prompt caching**, qui permettrait de mettre en cache cette partie fixe côté provider et de réduire les coûts à chaque run.
 
-**Cache des résultats.** Si un utilisateur demande une analyse d'un produit déjà traité récemment, il n'est pas nécessaire de relancer le workflow complet. En vérifiant en base si une entrée récente existe pour le même `product_name`, on pourrait retourner directement le fichier Markdown existant, ce qui optimiserait encore plus les coûts.
+**Cache des résultats:** Si un utilisateur demande une analyse d'un produit déjà traité récemment, il n'est pas nécessaire de relancer le workflow complet. En vérifiant en base si une entrée récente existe pour le même `product_name`, on pourrait retourner directement le fichier Markdown existant, ce qui optimiserait encore plus les coûts.
 
-**Parallélisation.** ADK supporte par défaut la parallélisation des outils et des sous-agents. `review_analyst`, `trend_analyzer` et les recherches de prix s'exécutent déjà en parallèle au sein d'un même run, sans infrastructure supplémentaire.
+**Parallélisation:** ADK supporte par défaut la parallélisation des outils et des sous-agents. `review_analyst`, `trend_analyzer` et les recherches de prix s'exécutent déjà en parallèle au sein d'un même run, sans infrastructure supplémentaire.
+
+---
+
+## Amélioration continue et A/B testing
+
+**Évaluation automatique.** Arize AX joue ce rôle via ses online evaluators déjà décrits dans la section monitoring. Les scores de qualité accumulés à chaque run constituent une base historique qui permet de détecter si une modification de prompt ou de modèle dégrade les résultats.
+
+**A/B testing.** Nous pourrions utiliser **PostHog** pour gérer les variantes : une portion des utilisateurs serait exposée à une configuration v2 (prompt, modèle, température) tandis que le reste continuerait sur v1. Arize AX tracerait les deux variantes séparément, permettant de comparer les métriques de qualité et de performance entre les deux groupes. Quand v2 se montre supérieure, la configuration YAML est mise à jour via une pull request.
+
+**Feedback utilisateur.** Nous pourrions ajouter une table `report_feedbacks` en base pour capturer les retours utilisateurs :
+
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | UUID | Identifiant unique du feedback |
+| `report_id` | UUID | Référence vers `analysis_reports` |
+| `user_id` | TEXT | Identifiant de l'utilisateur |
+| `feedback` | TEXT | Retour utilisateur (ex: `positive`, `negative`) |
+| `created_at` | TIMESTAMPTZ | Horodatage de la création |
+
+Un endpoint supplémentaire sur le serveur FastAPI d'ADK permettrait de recevoir ces feedbacks. Ce signal est précieux pour calibrer les évaluateurs automatiques : si Arize AX attribue un bon score à un rapport que les utilisateurs notent négativement, c'est que l'évaluateur est mal calibré.
+
+**Évolution des capacités.** La façon la plus naturelle de faire évoluer l'agent serait d'ajouter de nouveaux outils et sous-agents : un `price_predictor` pour modéliser l'évolution des prix, un `competitor_analyst` pour comparer le produit à ses alternatives, ou de nouvelles sources de données. ADK est conçu pour ça — chaque nouvel outil enrichit les rapports sans toucher à l'architecture existante.
 
 ---
 
