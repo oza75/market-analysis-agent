@@ -68,7 +68,7 @@ Tavily est une API de recherche conçue pour les LLM. Elle renvoie directement u
 | Résultats d'analyse | PostgreSQL |
 | Rapports générés | Fichiers Markdown |
 | Cache | Redis |
-| Traçabilité des exécutions | MLflow |
+| Traçabilité des exécutions | Arize AX |
 | Configuration des agents | Fichiers YAML |
 
 **Résultats d'analyse :** PostgreSQL serait idéal pour ce type de données. La table pourrait être structurée comme suit :
@@ -85,9 +85,28 @@ Tavily est une API de recherche conçue pour les LLM. Elle renvoie directement u
 
 **Cache :** Les appels aux outils externes (example: Tavily) sont les opérations les plus lentes et les plus coûteuses du workflow. Redis permettrait de les mettre en cache avec un TTL, de sorte que deux analyses du même produit à quelques minutes d'intervalle ne déclencheraient pas deux séries d'appels API identiques.
 
-**Traçabilité :** Cet agent est plus un workflow, qu'un chatbot. Une fois le rapport généré, la session est terminée et il n'y a pas de conversation à reprendre. En revanche, pouvoir rejouer une exécution pour comprendre pourquoi un rapport est incorrect est essentiel. MLflow pourrait jouer ce rôle en traçant et analysant les différents runs.
+**Traçabilité :** Cet agent est plus un workflow, qu'un chatbot. Une fois le rapport généré, la session est terminée et il n'y a pas de conversation à reprendre. En revanche, pouvoir rejouer une exécution pour comprendre pourquoi un rapport est incorrect est essentiel. Arize AX pourrait jouer ce rôle en traçant et analysant les différents runs.
 
 **Configuration :** Le modèle, le prompt, la température et les autres paramètres de chaque agent pourraient être définis dans des fichiers YAML versionnés dans le dépôt Git. Ces fichiers seraient chargés au démarrage et transmis aux différents agents. Tout changement passerait par une pull request et pourrait être annulé via un simple revert en cas de régression.
+
+---
+
+## Monitoring et observabilité
+
+| Métrique | Catégorie | Raison |
+|---|---|---|
+| Latence end-to-end par run | Performance | Détecte les dégradations globales du workflow |
+| Latence par outil | Performance | Identifie quel outil est le goulot d'étranglement |
+| Taux d'erreur par outil | Fiabilité | Détecte les pannes ou dégradations des dépendances externes |
+| Token usage (input + output) | Coût | Permet de suivre et anticiper les coûts LLM |
+| Hallucination | Qualité | Les prix, URLs et données du rapport sont-ils ancrés dans les sources collectées, ou inventés par le LLM ? |
+| Groundedness | Qualité | Chaque affirmation du rapport peut-elle être tracée jusqu'à un résultat de recherche ou une donnée d'outil réelle ? |
+| Completeness | Qualité | Le rapport contient-il toutes les sections attendues (prix, tendances, avis, recommandation d'achat) ? |
+| Coherence | Qualité | Le trend déclaré dans le texte est-il cohérent avec les données numériques retournées par `trend_analyzer` ? |
+
+**Arize AX** serait l'outil de monitoring et d'observabilité. Il couvre nativement les quatre dimensions du monitoring d'un système d'agents : le tracing des exécutions, la collecte de métriques de performance, l'alerting en cas de dysfonctionnement, et l'évaluation de la qualité des outputs via ses *online evaluators*, qui analysent automatiquement chaque rapport généré à chaque run. C'est ce dernier point qui justifie le choix d'Arize AX plutôt qu'un outil de monitoring généraliste comme MLFlow.
+
+Il s'intègre aussi nativement avec Google ADK, ce qui signifie que chaque run, chaque appel d'outil et chaque sous-agent est tracé automatiquement sans instrumentation manuelle.
 
 ---
 
